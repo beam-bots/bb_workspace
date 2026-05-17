@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#
+# bb-status — one-line git status across every cloned beam-bots repo.
+#
+# Shows: branch • ahead/behind upstream • dirty marker.
+
+set -uo pipefail
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKSPACE"
+
+red()    { printf '\033[31m%s\033[0m' "$*"; }
+green()  { printf '\033[32m%s\033[0m' "$*"; }
+yellow() { printf '\033[33m%s\033[0m' "$*"; }
+dim()    { printf '\033[2m%s\033[0m' "$*"; }
+
+printf '%-32s %-24s %-14s %s\n' REPO BRANCH UPSTREAM STATE
+for d in */; do
+  d="${d%/}"
+  [[ -d "$d/.git" ]] || continue
+
+  (
+    cd "$d"
+    branch=$(git symbolic-ref --quiet --short HEAD || echo "(detached)")
+    upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "-")
+
+    if [[ "$upstream" != "-" ]]; then
+      counts=$(git rev-list --left-right --count "HEAD...$upstream" 2>/dev/null || echo "0	0")
+      ahead=${counts%	*}
+      behind=${counts##*	}
+      pos="↑$ahead ↓$behind"
+    else
+      pos="-"
+    fi
+
+    if git diff --quiet && git diff --cached --quiet; then
+      dirty=$(green clean)
+    else
+      dirty=$(yellow dirty)
+    fi
+
+    untracked=$(git status --porcelain | grep -c '^??' || true)
+    [[ $untracked -gt 0 ]] && dirty="$dirty $(dim "(?$untracked)")"
+
+    printf '%-32s %-24s %-14s %b\n' "$d" "$branch" "$pos" "$dirty"
+  )
+done

@@ -1,0 +1,51 @@
+{
+  "name": "bb_workspace",
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+  "workspaceFolder": "/workspaces/bb_workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/bb_workspace,type=bind,consistency=cached",
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly"
+  ],
+  "initializeCommand": "mkdir -p $HOME/.claude",
+  "forwardPorts": [4000],
+  "portsAttributes": {
+    "4000": {
+      "label": "Phoenix Dev Server"
+    }
+  },
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-extra/features/apt-packages:1": {
+      "packages": "autoconf,m4,libwxgtk3.2-dev,libwxgtk-webview3.2-dev,libgl1-mesa-dev,libglu1-mesa-dev,libpng-dev,libssh-dev,unixodbc-dev,xsltproc,fop,libxml2-utils,libncurses-dev,i2c-tools,inotify-tools,direnv"
+    },
+    "ghcr.io/devcontainer-community/devcontainer-features/asdf-vm.com:1": {}
+  },
+  "onCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "ANTHROPIC_AUTH_TOKEN": "${localEnv:ANTHROPIC_AUTH_TOKEN}",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "LANG": "en_US.UTF-8",
+    "LC_ALL": "en_US.UTF-8",
+    "PATH": "/workspaces/bb_workspace/bin:/home/vscode/.asdf/shims:/home/vscode/.asdf/bin:${containerEnv:PATH}"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "animus-coop.vscode-elixir-mix-formatter",
+        "royalmist.vscode-eex-format",
+        "jakebecker.elixir-ls",
+        "iampeterbanjo.elixirlinter",
+        "pgourlain.erlang",
+        "szTheory.erlang-formatter",
+        "phoenixframework.phoenix",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  }
+}

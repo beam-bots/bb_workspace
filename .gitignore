@@ -1,0 +1,14 @@
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# asdf / local tool installs
+.asdf-data/
+
+# Anything bb-sync writes between the markers below is managed automatically.
+# Run `bin/bb-sync` to refresh.
+
+# >>> bb-sync managed (do not edit between markers) >>>
+# <<< bb-sync managed <<<

@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+#
+# bb-sync — discover beam-bots/* repositories on GitHub and ensure each is
+# cloned and up to date inside this workspace. Also updates the workspace
+# .gitignore so the cloned repos are not tracked.
+#
+# Usage:
+#   bb-sync                  # clone missing repos, fast-forward existing ones
+#   bb-sync --fresh          # also switch each clean repo to its default branch
+#                            # before fast-forwarding; refuses dirty repos
+#   bb-sync --dry-run        # show what would happen without changing anything
+#   bb-sync --no-pull        # clone missing, skip fetch/pull of existing
+#   bb-sync --include-archived
+#   bb-sync --org NAME       # override the GitHub org (default: beam-bots)
+#
+# Requires: gh (authenticated), git.
+
+set -euo pipefail
+
+ORG="beam-bots"
+DRY_RUN=0
+DO_PULL=1
+INCLUDE_ARCHIVED=0
+FRESH=0
+
+# Repositories we know we never want cloned into the workspace, even though
+# they live in the org. Adjust as needed.
+SKIP_REPOS=(
+  ".github"
+  "bb_workspace"
+)
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --no-pull) DO_PULL=0; shift ;;
+    --fresh) FRESH=1; shift ;;
+    --include-archived) INCLUDE_ARCHIVED=1; shift ;;
+    --org) ORG="$2"; shift 2 ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKSPACE"
+
+command -v gh >/dev/null || { echo "gh not found in PATH" >&2; exit 1; }
+gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated; run: gh auth login" >&2; exit 1; }
+
+ARCHIVE_FILTER='select(.archived == false)'
+[[ $INCLUDE_ARCHIVED -eq 1 ]] && ARCHIVE_FILTER='.'
+
+REPOS=()
+while IFS= read -r line; do
+  REPOS+=("$line")
+done < <(
+  gh api "orgs/$ORG/repos" --paginate \
+    --jq ".[] | $ARCHIVE_FILTER | [.name, .ssh_url, .default_branch] | @tsv" \
+    | sort
+)
+
+[[ ${#REPOS[@]} -eq 0 ]] && { echo "no repos returned from GitHub for org $ORG" >&2; exit 1; }
+
+KEPT_NAMES=()
+for line in "${REPOS[@]}"; do
+  name="${line%%	*}"
+  rest="${line#*	}"
+  ssh_url="${rest%%	*}"
+  default_branch="${rest##*	}"
+
+  skip=0
+  for s in "${SKIP_REPOS[@]}"; do
+    [[ "$name" == "$s" ]] && skip=1 && break
+  done
+  [[ $skip -eq 1 ]] && continue
+
+  KEPT_NAMES+=("$name")
+  target="$WORKSPACE/$name"
+
+  if [[ ! -d "$target" ]]; then
+    echo "==> clone $name"
+    if [[ $DRY_RUN -eq 0 ]]; then
+      git clone "$ssh_url" "$target"
+    fi
+    continue
+  fi
+
+  if [[ ! -d "$target/.git" ]]; then
+    echo "!! $name exists but is not a git checkout — skipping" >&2
+    continue
+  fi
+
+  if [[ $DO_PULL -eq 0 ]]; then
+    continue
+  fi
+
+  echo "==> sync $name"
+  if [[ $DRY_RUN -eq 1 ]]; then
+    continue
+  fi
+
+  (
+    cd "$target"
+    git fetch --quiet --prune origin
+
+    # Uncommitted work is sacred — never touch it, regardless of mode.
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "   uncommitted changes — leaving alone"
+      exit 0
+    fi
+    # In --fresh mode, also treat untracked files as work-in-progress.
+    if [[ "$FRESH" -eq 1 ]] && [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+      echo "   untracked files present — leaving alone"
+      exit 0
+    fi
+
+    current_branch=$(git symbolic-ref --quiet --short HEAD || echo "")
+    upstream="origin/$default_branch"
+
+    if [[ "$FRESH" -eq 1 ]]; then
+      # Refuse to abandon unpushed commits on a feature branch.
+      if [[ -n "$current_branch" && "$current_branch" != "$default_branch" ]]; then
+        branch_upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "")
+        if [[ -z "$branch_upstream" ]]; then
+          echo "   on $current_branch with no upstream — leaving alone (push or delete first)"
+          exit 0
+        fi
+        if ! git merge-base --is-ancestor HEAD "$branch_upstream" 2>/dev/null; then
+          echo "   on $current_branch with unpushed commits — leaving alone"
+          exit 0
+        fi
+      fi
+
+      if [[ "$current_branch" != "$default_branch" ]]; then
+        echo "   switching $current_branch -> $default_branch"
+        git checkout --quiet "$default_branch"
+      fi
+      git merge --ff-only --quiet "$upstream" || { echo "   fast-forward failed"; exit 0; }
+      exit 0
+    fi
+
+    if [[ -z "$current_branch" ]]; then
+      echo "   detached HEAD — leaving alone"
+      exit 0
+    fi
+    if [[ "$current_branch" != "$default_branch" ]]; then
+      echo "   on $current_branch (default $default_branch) — leaving alone"
+      exit 0
+    fi
+    if ! git merge-base --is-ancestor HEAD "$upstream" 2>/dev/null; then
+      echo "   local commits not on $upstream — leaving alone"
+      exit 0
+    fi
+    git merge --ff-only --quiet "$upstream" || echo "   fast-forward failed"
+  )
+done
+
+# Rewrite the managed section of .gitignore.
+GITIGNORE="$WORKSPACE/.gitignore"
+BEGIN_MARK="# >>> bb-sync managed (do not edit between markers) >>>"
+END_MARK="# <<< bb-sync managed <<<"
+
+tmp=$(mktemp)
+if [[ -f "$GITIGNORE" ]]; then
+  awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
+    $0 == b { skip = 1; next }
+    $0 == e { skip = 0; next }
+    !skip   { print }
+  ' "$GITIGNORE" > "$tmp"
+fi
+
+{
+  cat "$tmp"
+  # Make sure there is exactly one blank line before the block.
+  [[ -s "$tmp" ]] && tail -c1 "$tmp" | od -An -c | grep -q '\\n' || echo
+  echo "$BEGIN_MARK"
+  for name in "${KEPT_NAMES[@]}"; do
+    echo "/$name/"
+  done
+  echo "$END_MARK"
+} > "$GITIGNORE.new"
+
+if [[ $DRY_RUN -eq 1 ]]; then
+  echo "==> would rewrite .gitignore with ${#KEPT_NAMES[@]} entries"
+  rm -f "$tmp" "$GITIGNORE.new"
+else
+  mv "$GITIGNORE.new" "$GITIGNORE"
+  rm -f "$tmp"
+  echo "==> .gitignore updated (${#KEPT_NAMES[@]} repos)"
+fi

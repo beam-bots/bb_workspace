@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+#
+# bb-each — run a command inside every cloned beam-bots repo in this workspace.
+#
+# Usage:
+#   bb-each <command...>            # run command in every repo
+#   bb-each --mix <command...>      # only repos containing mix.exs
+#   bb-each --filter glob <cmd...>  # only repos matching shell glob (e.g. 'bb_*')
+#   bb-each --parallel <cmd...>     # run in parallel (xargs -P)
+#
+# Repos are detected as immediate subdirectories that contain a .git directory.
+# Exit code is non-zero if any sub-command failed.
+
+set -uo pipefail
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKSPACE"
+
+MIX_ONLY=0
+PARALLEL=0
+FILTER=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mix) MIX_ONLY=1; shift ;;
+    --parallel) PARALLEL=1; shift ;;
+    --filter) FILTER="$2"; shift 2 ;;
+    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
+
+[[ $# -eq 0 ]] && { echo "no command given" >&2; exit 2; }
+
+repos=()
+for d in */; do
+  d="${d%/}"
+  [[ -d "$d/.git" ]] || continue
+  [[ -n "$FILTER" && ! "$d" == $FILTER ]] && continue
+  [[ $MIX_ONLY -eq 1 && ! -f "$d/mix.exs" ]] && continue
+  repos+=("$d")
+done
+
+[[ ${#repos[@]} -eq 0 ]] && { echo "no matching repos" >&2; exit 0; }
+
+run_one() {
+  local repo="$1"; shift
+  printf '\n==> \033[1m%s\033[0m\n' "$repo"
+  (cd "$repo" && "$@")
+}
+
+export -f run_one
+
+failures=0
+if [[ $PARALLEL -eq 1 ]]; then
+  printf '%s\0' "${repos[@]}" \
+    | xargs -0 -n1 -P"$(getconf _NPROCESSORS_ONLN)" -I{} bash -c 'run_one "$@"' _ {} "$@" \
+    || failures=$?
+else
+  for repo in "${repos[@]}"; do
+    run_one "$repo" "$@" || failures=$((failures + 1))
+  done
+fi
+
+exit "$failures"

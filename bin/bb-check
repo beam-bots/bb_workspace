@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# bb-check — run `mix check --no-retry` (or any mix task) in every Elixir repo.
+#
+# Usage:
+#   bb-check                 # mix check --no-retry
+#   bb-check test            # mix test
+#   bb-check deps.get        # mix deps.get
+#
+# Repos without a mix.exs are skipped automatically.
+
+set -uo pipefail
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+
+if [[ $# -eq 0 ]]; then
+  set -- check --no-retry
+fi
+
+exec "$WORKSPACE/bin/bb-each" --mix -- mix "$@"

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+#
+# bb-deps-local — fetch deps in every Elixir repo with BB_VERSION=local so
+# packages resolve `bb` from the sibling checkout instead of hex.pm.
+#
+# See CLAUDE.md for the BB_VERSION pattern.
+
+set -uo pipefail
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+export BB_VERSION=local
+
+exec "$WORKSPACE/bin/bb-each" --mix -- mix deps.get
