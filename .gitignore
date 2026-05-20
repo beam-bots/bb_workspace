@@ -11,4 +11,24 @@
 # Run `bin/bb-sync` to refresh.
 
 # >>> bb-sync managed (do not edit between markers) >>>
+/bb_examples/
+/bb_example_so101/
+/bb_example_wx200/
+/bb/
+/bb_ik_dls/
+/bb_ik_fabrik/
+/bb_jido/
+/bb_kino/
+/bb_liveview/
+/bb_mcp/
+/bb_pid_controller/
+/bb_reactor/
+/bb_servo_feetech/
+/bb_servo_pca9685/
+/bb_servo_pigpio/
+/bb_servo_robotis/
+/bb_so101/
+/feetech/
+/proposals/
+/website/
 # <<< bb-sync managed <<<
