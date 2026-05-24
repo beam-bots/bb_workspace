@@ -23,6 +23,7 @@
 /bb_mcp/
 /bb_pid_controller/
 /bb_reactor/
+/bb_sensor_ina219/
 /bb_servo_feetech/
 /bb_servo_pca9685/
 /bb_servo_pigpio/
