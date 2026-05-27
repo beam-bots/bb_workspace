@@ -175,9 +175,7 @@ fi
   # Make sure there is exactly one blank line before the block.
   [[ -s "$tmp" ]] && tail -c1 "$tmp" | od -An -c | grep -q '\\n' || echo
   echo "$BEGIN_MARK"
-  for name in "${KEPT_NAMES[@]}"; do
-    echo "/$name/"
-  done
+  printf '/%s/\n' "${KEPT_NAMES[@]}" | LC_ALL=C sort
   echo "$END_MARK"
 } > "$GITIGNORE.new"
 

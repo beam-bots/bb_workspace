@@ -11,10 +11,11 @@
 # Run `bin/bb-sync` to refresh.
 
 # >>> bb-sync managed (do not edit between markers) >>>
-/bb_examples/
+/bb/
+/bb_estimator_ahrs/
 /bb_example_so101/
 /bb_example_wx200/
-/bb/
+/bb_examples/
 /bb_ik_dls/
 /bb_ik_fabrik/
 /bb_jido/
@@ -23,6 +24,7 @@
 /bb_mcp/
 /bb_pid_controller/
 /bb_reactor/
+/bb_sensor_bmi323/
 /bb_sensor_ina219/
 /bb_servo_feetech/
 /bb_servo_pca9685/
