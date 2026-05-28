@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+#
+# bb-unreleased — list non-chore commits sitting above the latest tag on each
+# cloned beam-bots repo's default branch. Use it to spot packages that have
+# user-visible changes waiting to be released.
+#
+# Usage:
+#   bb-unreleased            # repos with non-chore unreleased commits
+#   bb-unreleased --all      # every repo, including up-to-date / chore-only
+#   bb-unreleased --quiet    # just the names of repos that need a release
+#   bb-unreleased --fetch    # `git fetch --tags` each repo first
+#   bb-unreleased --types t1,t2
+#                            # conventional-commit types treated as chore
+#                            # (default: chore)
+#
+# A repo with no tags is treated as "all commits unreleased". Untagged repos
+# without any non-chore commits on the default branch still print under --all.
+
+set -uo pipefail
+
+SHOW_ALL=0
+QUIET=0
+FETCH=0
+SKIP_TYPES="chore"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all) SHOW_ALL=1; shift ;;
+    -q|--quiet) QUIET=1; shift ;;
+    --fetch) FETCH=1; shift ;;
+    --types) SKIP_TYPES="$2"; shift 2 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+
+WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WORKSPACE"
+
+bold()   { printf '\033[1m%s\033[0m' "$*"; }
+dim()    { printf '\033[2m%s\033[0m' "$*"; }
+green()  { printf '\033[32m%s\033[0m' "$*"; }
+yellow() { printf '\033[33m%s\033[0m' "$*"; }
+red()    { printf '\033[31m%s\033[0m' "$*"; }
+
+# Build an ERE that matches conventional-commit subjects we want to ignore,
+# e.g. "chore: ...", "chore(deps): ...", "chore!: ..." for SKIP_TYPES=chore.
+IFS=',' read -r -a _types <<< "$SKIP_TYPES"
+SKIP_RE="^($(IFS='|'; echo "${_types[*]}"))([(][^)]+[)])?!?:"
+
+# Find the default branch ref for a repo. Falls back to main, then master.
+default_branch_ref() {
+  local ref
+  ref=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null) && {
+    echo "$ref"
+    return
+  }
+  for candidate in main master; do
+    if git rev-parse --verify --quiet "origin/$candidate" >/dev/null; then
+      echo "origin/$candidate"
+      return
+    fi
+  done
+  echo ""
+}
+
+any_output=0
+
+for d in */; do
+  d="${d%/}"
+  [[ -d "$d/.git" ]] || continue
+
+  line=$(
+    cd "$d"
+
+    if [[ "$FETCH" -eq 1 ]]; then
+      git fetch --quiet --tags --prune origin 2>/dev/null || true
+    fi
+
+    upstream=$(default_branch_ref)
+    if [[ -z "$upstream" ]]; then
+      [[ "$SHOW_ALL" -eq 1 ]] && printf 'STATE\t%s\t%s\n' "$d" "$(yellow "no default branch")"
+      exit 0
+    fi
+
+    last_tag=$(git describe --tags --abbrev=0 "$upstream" 2>/dev/null || echo "")
+    if [[ -n "$last_tag" ]]; then
+      range="$last_tag..$upstream"
+      header_tag="$last_tag"
+    else
+      range="$upstream"
+      header_tag="(no tag)"
+    fi
+
+    commits=$(git log --no-merges --pretty='%h %s' "$range" 2>/dev/null || true)
+    total=0
+    [[ -n "$commits" ]] && total=$(printf '%s\n' "$commits" | wc -l | tr -d ' ')
+
+    if [[ "$total" -eq 0 ]]; then
+      [[ "$SHOW_ALL" -eq 1 ]] && printf 'CLEAN\t%s\t%s\n' "$d" "$header_tag → ${upstream#origin/}, up to date"
+      exit 0
+    fi
+
+    interesting=$(printf '%s\n' "$commits" | awk -v re="$SKIP_RE" '
+      {
+        s = $0
+        sub(/^[^ ]+ /, "", s)
+        if (s ~ re) next
+        print
+      }')
+    iccount=0
+    [[ -n "$interesting" ]] && iccount=$(printf '%s\n' "$interesting" | wc -l | tr -d ' ')
+    chore_count=$((total - iccount))
+
+    if [[ "$iccount" -eq 0 ]]; then
+      [[ "$SHOW_ALL" -eq 1 ]] && printf 'CHORE\t%s\t%s\t%s\n' "$d" "$header_tag → ${upstream#origin/}" "$chore_count chore"
+      exit 0
+    fi
+
+    # Emit a record we can parse outside the subshell.
+    summary="$header_tag → ${upstream#origin/}"
+    if [[ "$QUIET" -eq 1 ]]; then
+      printf 'NAME\t%s\n' "$d"
+    else
+      printf 'HIT\t%s\t%s\t%d\t%d\n' "$d" "$summary" "$iccount" "$chore_count"
+      while IFS= read -r c; do
+        [[ -z "$c" ]] && continue
+        printf 'COMMIT\t%s\n' "$c"
+      done <<< "$interesting"
+    fi
+  )
+
+  [[ -z "$line" ]] && continue
+  any_output=1
+
+  while IFS=$'\t' read -r kind a b c e; do
+    case "$kind" in
+      NAME)
+        echo "$a"
+        ;;
+      HIT)
+        printf '%s %s %s\n' "$(bold "$a")" "$(dim "$b")" "$(yellow "$c non-chore")"
+        [[ "${e:-0}" -gt 0 ]] && printf '    %s\n' "$(dim "($e chore commit(s) hidden)")"
+        ;;
+      COMMIT)
+        printf '    %s\n' "$a"
+        ;;
+      CLEAN)
+        printf '%s %s\n' "$(bold "$a")" "$(green "$b")"
+        ;;
+      CHORE)
+        printf '%s %s %s\n' "$(bold "$a")" "$(dim "$b")" "$(dim "$c")"
+        ;;
+      STATE)
+        printf '%s %s\n' "$(bold "$a")" "$b"
+        ;;
+    esac
+  done <<< "$line"
+done
+
+if [[ "$any_output" -eq 0 && "$SHOW_ALL" -eq 0 && "$QUIET" -eq 0 ]]; then
+  echo "$(green "all repos are up to date (no unreleased non-chore commits)")"
+fi
