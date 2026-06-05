@@ -64,11 +64,25 @@ default_branch_ref() {
   echo ""
 }
 
+# Cloned repos that aren't releasable packages, so "unreleased commits" is
+# meaningless for them.
+SKIP_DIRS=(
+  "_github"
+  "proposals"
+  "website"
+)
+
 any_output=0
 
 for d in */; do
   d="${d%/}"
   [[ -d "$d/.git" ]] || continue
+
+  skip=0
+  for s in "${SKIP_DIRS[@]}"; do
+    [[ "$d" == "$s" ]] && skip=1 && break
+  done
+  [[ $skip -eq 1 ]] && continue
 
   line=$(
     cd "$d"

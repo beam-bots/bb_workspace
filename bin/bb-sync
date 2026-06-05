@@ -26,9 +26,19 @@ FRESH=0
 # Repositories we know we never want cloned into the workspace, even though
 # they live in the org. Adjust as needed.
 SKIP_REPOS=(
-  ".github"
+  "bb_rpc"
   "bb_workspace"
 )
+
+# Some repos need a different on-disk name than their GitHub name. `.github`
+# would clash with this workspace's own CI directory, so it is cloned as
+# `_github` instead.
+local_name_for() {
+  case "$1" in
+    .github) echo "_github" ;;
+    *) echo "$1" ;;
+  esac
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,11 +85,12 @@ for line in "${REPOS[@]}"; do
   done
   [[ $skip -eq 1 ]] && continue
 
-  KEPT_NAMES+=("$name")
-  target="$WORKSPACE/$name"
+  local_name="$(local_name_for "$name")"
+  KEPT_NAMES+=("$local_name")
+  target="$WORKSPACE/$local_name"
 
   if [[ ! -d "$target" ]]; then
-    echo "==> clone $name"
+    echo "==> clone $local_name"
     if [[ $DRY_RUN -eq 0 ]]; then
       git clone "$ssh_url" "$target"
     fi
@@ -87,7 +98,7 @@ for line in "${REPOS[@]}"; do
   fi
 
   if [[ ! -d "$target/.git" ]]; then
-    echo "!! $name exists but is not a git checkout — skipping" >&2
+    echo "!! $local_name exists but is not a git checkout — skipping" >&2
     continue
   fi
 
@@ -95,7 +106,7 @@ for line in "${REPOS[@]}"; do
     continue
   fi
 
-  echo "==> sync $name"
+  echo "==> sync $local_name"
   if [[ $DRY_RUN -eq 1 ]]; then
     continue
   fi

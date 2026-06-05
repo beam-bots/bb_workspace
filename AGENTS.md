@@ -37,7 +37,11 @@ markers — anything you put outside those markers is preserved.
 ### Skipping repos
 
 `bb-sync` has a `SKIP_REPOS` array near the top for repos that should never be
-cloned (currently `.github` and `bb_workspace` itself). Edit it there.
+cloned (currently `bb_rpc` and `bb_workspace` itself). Edit it there.
+
+The `local_name_for` function maps a GitHub repo name to a different on-disk
+directory name. `.github` is cloned as `_github` so it doesn't clash with this
+workspace's own (potential) `.github` CI directory.
 
 ## Devcontainer
 
