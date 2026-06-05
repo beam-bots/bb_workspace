@@ -11,6 +11,7 @@
 # Run `bin/bb-sync` to refresh.
 
 # >>> bb-sync managed (do not edit between markers) >>>
+/_github/
 /bb/
 /bb_estimator_ahrs/
 /bb_example_so101/
