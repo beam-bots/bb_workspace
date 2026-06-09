@@ -6,6 +6,7 @@
 
 # asdf / local tool installs
 .asdf-data/
+.claude/
 
 # Anything bb-sync writes between the markers below is managed automatically.
 # Run `bin/bb-sync` to refresh.
@@ -24,6 +25,7 @@
 /bb_liveview/
 /bb_mcp/
 /bb_pid_controller/
+/bb_policy/
 /bb_reactor/
 /bb_sensor_bmi323/
 /bb_sensor_ina219/
