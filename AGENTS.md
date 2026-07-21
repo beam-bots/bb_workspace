@@ -158,6 +158,12 @@ Satellites are near-clones of a shared skeleton. A new one should match:
 - **REUSE/SPDX**: every source file carries an SPDX header (`#`-style for code,
   HTML-comment for `.md`; `Apache-2.0`; year `2026`); binaries/locks/json get a
   `<file>.license` sidecar; `LICENSES/` holds the texts. CI runs `reuse lint`.
+  When creating a file, its `SPDX-FileCopyrightText` credits **the user you are
+  working for** (name from `git config user.name`, current year) — not the agent
+  and not the repo's original author; never copy an existing file's copyright
+  line onto a new one. `bb_estimator_ahrs` is mixed-licence (MIT algorithm code,
+  Apache-2.0 wrappers), so match the neighbouring files rather than assuming
+  `Apache-2.0`.
 - **Releases**: conventional commits + `git_ops` auto-bump the version in
   `mix.exs`/README and generate `CHANGELOG.md`; CI publishes to Hex via the
   shared `beam-bots/.github` reusable workflow on push to `main`.
