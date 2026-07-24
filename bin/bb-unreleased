@@ -21,7 +21,7 @@ set -uo pipefail
 SHOW_ALL=0
 QUIET=0
 FETCH=0
-SKIP_TYPES="chore"
+SKIP_TYPES="chore,docs"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
