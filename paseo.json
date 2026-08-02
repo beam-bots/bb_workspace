@@ -1,0 +1,9 @@
+{
+  "worktree": {
+    "setup": [
+      "./bin/bb-sync --fresh",
+      "./bin/bb-each asdf install",
+      "./bin/bb-each --mix mix deps.get"
+    ]
+  }
+}
