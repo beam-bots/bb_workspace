@@ -17,4 +17,14 @@ if [[ $# -eq 0 ]]; then
   set -- check --no-retry
 fi
 
+# Dialyxir decides a cached PLT is current by hashing mix.lock plus the app
+# list. Under BB_VERSION=local the bb-family deps are path deps, so their
+# source moves whenever you pull while the lock sits still — the hash matches,
+# the check is skipped, and dialyzer runs against a PLT that predates the
+# newest exports, reporting `call_to_missing` for them. Dropping the hash
+# forces the check, which is incremental (seconds) rather than a rebuild.
+if [[ "${BB_VERSION:-}" == "local" ]]; then
+  rm -f "$WORKSPACE"/*/_build/*/*.plt.hash
+fi
+
 exec "$WORKSPACE/bin/bb-each" --mix -- mix "$@"

@@ -28,7 +28,7 @@ anywhere — they resolve their own paths).
 | `bb-status` | One-line `git status` summary across every cloned repo (branch, ahead/behind, dirty marker). |
 | `bb-unreleased` | List non-chore commits on each repo's default branch above its latest tag — i.e. user-visible changes waiting for a release. `--all` shows every repo, `--quiet` prints just the names, `--types` overrides which conventional-commit types count as chore. |
 | `bb-each` | Run an arbitrary command in every repo. `--mix` limits to Elixir repos; `--filter 'bb_*'` for globs; `--parallel` to fan out. |
-| `bb-check` | Shorthand for `bb-each --mix -- mix check --no-retry`. Pass any mix task as an alternative. |
+| `bb-check` | Shorthand for `bb-each --mix -- mix check --no-retry`. Pass any mix task as an alternative. Under `BB_VERSION=local` it also drops each repo's cached PLT hash, since dialyxir can't tell a path dep's source has moved. |
 | `bb-deps-local` | `mix deps.get` everywhere with `BB_VERSION=local` so packages resolve `bb` from the sibling checkout. |
 
 `bb-sync` rewrites a managed block in `.gitignore` between `# >>> bb-sync managed`
