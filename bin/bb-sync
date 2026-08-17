@@ -55,6 +55,9 @@ done
 WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$WORKSPACE"
 
+. "$WORKSPACE/bin/bb-lock.sh"
+bb_lock_acquire "$WORKSPACE"
+
 command -v gh >/dev/null || { echo "gh not found in PATH" >&2; exit 1; }
 gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated; run: gh auth login" >&2; exit 1; }
 

@@ -34,6 +34,26 @@ anywhere — they resolve their own paths).
 `bb-sync` rewrites a managed block in `.gitignore` between `# >>> bb-sync managed`
 markers — anything you put outside those markers is preserved.
 
+### One writer at a time
+
+`bb-sync`, `bb-each`, `bb-check` and `bb-deps-local` all write to the same
+checkouts, so they take a workspace-wide lock (`bin/bb-lock.sh`, a `.bb-lock`
+directory in the workspace root). A second one waits for the first instead of
+racing it, naming the script, pid and start time it is queued behind:
+
+```
+==> waiting for bb-each mix check --no-retry (pid 4213 on jeb) since 2026-08-17 16:22:58 — ^C to give up
+```
+
+^C during the wait is safe — nothing has been touched yet, and the holder keeps
+its lock. The read-only scripts — `bb-status`, `bb-unreleased` — don't lock and
+can be run at any time.
+
+The lock is released on exit, `INT` and `TERM`. A lock left behind by a
+`kill -9` is detected and reclaimed rather than waited on, provided the pid was
+recorded on the same host — a lock taken inside the devcontainer can't be
+verified from the host (or vice versa) and has to be removed by hand.
+
 ### Skipping repos
 
 `bb-sync` has a `SKIP_REPOS` array near the top for repos that should never be

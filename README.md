@@ -29,6 +29,11 @@ provides Elixir, Erlang, `gh`, Node, and Claude Code preinstalled.
 | `bin/bb-check` | `mix check --no-retry` everywhere; pass any mix task as args to override. |
 | `bin/bb-deps-local` | `mix deps.get` with `BB_VERSION=local` so packages resolve `bb` from the sibling checkout. |
 
+Everything that writes to the checkouts (`bb-sync`, `bb-each`, `bb-check`,
+`bb-deps-local`) holds a workspace-wide lock, so a second one waits for the
+first — telling you what it is queued behind — instead of racing it. ^C during
+the wait gives up without disturbing the holder.
+
 See [`AGENTS.md`](./AGENTS.md) for the full layout and conventions.
 
 ## Prompts

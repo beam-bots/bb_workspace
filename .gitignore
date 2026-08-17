@@ -8,6 +8,9 @@
 .asdf-data/
 .claude/
 
+# Held while a bb-* script is running
+.bb-lock/
+
 # Anything bb-sync writes between the markers below is managed automatically.
 # Run `bin/bb-sync` to refresh.
 

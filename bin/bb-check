@@ -17,6 +17,11 @@ if [[ $# -eq 0 ]]; then
   set -- check --no-retry
 fi
 
+# Taken here rather than left to bb-each because the PLT hashes below are
+# already a workspace-wide write. `exec` keeps the pid, so bb-each inherits it.
+. "$WORKSPACE/bin/bb-lock.sh"
+bb_lock_acquire "$WORKSPACE" "mix $*"
+
 # Dialyxir decides a cached PLT is current by hashing mix.lock plus the app
 # list. Under BB_VERSION=local the bb-family deps are path deps, so their
 # source moves whenever you pull while the lock sits still — the hash matches,

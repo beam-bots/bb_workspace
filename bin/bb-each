@@ -33,6 +33,9 @@ done
 
 [[ $# -eq 0 ]] && { echo "no command given" >&2; exit 2; }
 
+. "$WORKSPACE/bin/bb-lock.sh"
+bb_lock_acquire "$WORKSPACE" "$@"
+
 repos=()
 for d in */; do
   d="${d%/}"
