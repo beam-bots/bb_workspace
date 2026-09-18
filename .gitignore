@@ -27,6 +27,8 @@
 /bb_kino/
 /bb_liveview/
 /bb_mcp/
+/bb_nsk/
+/bb_parameter_store_cubdb/
 /bb_pid_controller/
 /bb_policy/
 /bb_reactor/
