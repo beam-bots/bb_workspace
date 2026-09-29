@@ -19,7 +19,7 @@ config :nerves, :firmware,
 # Set the SOURCE_DATE_EPOCH date for reproducible builds.
 # See https://reproducible-builds.org/docs/source-date-epoch/ for more information
 
-config :nerves, source_date_epoch: "1790663827"
+config :nerves, source_date_epoch: "1790664262"
 
 if Mix.target() == :host do
   import_config "host.exs"

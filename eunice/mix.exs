@@ -35,8 +35,23 @@ defmodule Eunice.MixProject do
     [
       {:circuits_i2c, "~> 2.1"},
       {:circuits_gpio, "~> 2.1"},
+      {:sunxi,
+       [
+         github: "jimsynz/sunxi",
+         branch: "fix/explain-missing-binary",
+         targets: :host,
+         runtime: false,
+         override: true
+       ]},
+      {:nsk,
+       [
+         github: "jimsynz/nsk",
+         branch: "fix/start-req-for-downloads",
+         targets: :host,
+         runtime: false
+       ]},
       {:phx_install, "~> 0.1", only: [:dev, :test], runtime: false},
-      {:bb_nsk, "~> 0.1"},
+      {:bb_nsk, [path: "../bb_nsk", override: true]},
       {:igniter, "~> 0.6", only: [:dev, :test]},
       # Dependencies for all targets
       {:nerves, "~> 1.13", runtime: false},
