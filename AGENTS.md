@@ -180,12 +180,13 @@ Satellites are near-clones of a shared skeleton. A new one should match:
   `bb/mix.exs` currently says rather than to the number written here — a few
   satellites lag a minor version or two and should be bumped as they're touched.
 - **Dev/test deps** (`runtime: false`): `credo`, `dialyxir`, `ex_check`,
-  `ex_doc`, `git_ops`, `igniter`, `mix_audit`; `mimic` (`only: :test`) where
-  mocking is needed. No `stream_data` — there is no property testing in the
-  ecosystem.
+  `ex_doc`, `git_ops`, `igniter`; `mimic` (`only: :test`) where mocking is
+  needed. No `stream_data` — there is no property testing in the ecosystem. No
+  `mix_audit` either: its advisory database is a git checkout that drifts out of
+  date, and `mix hex.audit` now reports CVEs straight from hex.pm.
 - **Quality gate**: `mix check --no-retry` (ex_check); `.check.exs` adds
-  `credo --strict` + `reuse lint` (+ Spark tools only if the package ships a
-  DSL).
+  `credo --strict` + `hex.audit` + `reuse lint` (+ Spark tools only if the
+  package ships a DSL).
 - **REUSE/SPDX**: every source file carries an SPDX header (`#`-style for code,
   HTML-comment for `.md`; `Apache-2.0`; year `2026`); binaries/locks/json get a
   `<file>.license` sidecar; `LICENSES/` holds the texts. CI runs `reuse lint`.
