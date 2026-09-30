@@ -101,21 +101,26 @@ satellites. Knowing how they fit together saves re-deriving it from source.
 | Sensors | `bb_sensor_ina219`, `bb_sensor_bmi323` | `BB.Sensor` drivers (I²C/SPI via `wafer`). |
 | Servos | `bb_servo_feetech`, `bb_servo_pca9685`, `bb_servo_pigpio`, `bb_servo_robotis` | A `BB.Controller` bus manager + `BB.Actuator`s (+ optional `BB.Bridge`). |
 | Orchestration | `bb_reactor`, `bb_jido` | Reactor (saga) commands and Jido agents over BB commands. |
+| Policies | `bb_policy` | Learned (neural-network) behaviours mapping observations to actions, via ONNX. |
+| Persistence | `bb_parameter_store_cubdb` | A `BB.Parameter.Store` backed by CubDB. Ships its own DSL section. |
+| Board support | `bb_nsk` | Nerves Starter Kit and its Balance Bot add-on, plus the workshop deck in `slides/`. |
 | Surfaces | `bb_liveview`, `bb_kino`, `bb_mcp` | UIs / tooling over a running robot. |
 | Examples | `bb_example_so101`, `bb_example_wx200`, `bb_so101`, `bb_examples` | Whole-robot configurations. |
 | Vendored libs | `feetech` | Non-BB hardware protocol libraries. |
 
 ### The extension model
 
-A robot is a module that does `use BB` — a Spark DSL (`BB.Dsl`). Today every
-satellite integrates the same way: it supplies a *module implementing a `bb`
-behaviour*, which the user wires into an existing DSL slot as `Module` or
-`{Module, keyword_opts}` (the schema type is consistently `{:or, [{:behaviour,
-BB.X}, {:tuple, [{:behaviour, BB.X}, :keyword_list]}]}`). **No satellite ships
-its own DSL extension yet, but the architecture allows it** — Spark supports
-extension composition, and satellites are expected to add their own DSL sections
-in future. Treat "wire a module into an existing slot" as the current norm, not
-a hard boundary.
+A robot is a module that does `use BB` — a Spark DSL (`BB.Dsl`). Most satellites
+integrate the same way: they supply a *module implementing a `bb` behaviour*,
+which the user wires into an existing DSL slot as `Module` or `{Module,
+keyword_opts}` (the schema type is consistently `{:or, [{:behaviour, BB.X},
+{:tuple, [{:behaviour, BB.X}, :keyword_list]}]}`). Treat that as the norm.
+
+It is not the boundary, though. Spark supports extension composition, and
+`bb_parameter_store_cubdb` already ships its own — `BB.Parameter.Store.CubDB.Dsl`
+adds a section and a transformer, and the user opts in with `use BB, extensions:
+[BB.Parameter.Store.CubDB.Dsl]`. Reach for an extension when a satellite needs
+configuration of its own rather than a slot to be dropped into.
 
 The behaviours, each defined in `bb/lib/bb/<name>.ex`: `BB.Sensor`,
 `BB.Actuator`, `BB.Controller`, `BB.Estimator`, `BB.Command`, `BB.Bridge`,
@@ -142,18 +147,24 @@ Two integration shapes:
 
 The recurring pair for "run an algorithm against a robot":
 
-- **`BB.Controller`** — long-lived, supervised, robot-level. Runs its own loop
-  with `Process.send_after(self(), :tick, ms)` + `handle_info(:tick, …)` (see
-  `bb_pid_controller` and `bb_servo_feetech`'s controller). Optional `disarm/1`
-  registers it with `BB.Safety`. **Gotcha:** controllers default to
+- **`BB.Controller`** — long-lived, supervised, robot-level. Usually runs a
+  periodic loop (see `bb_pid_controller` and `bb_servo_feetech`'s controller).
+  Optional `disarm/1` registers it with `BB.Safety`. **Gotcha:** controllers
+  default to
   `simulation: :omit` (`bb/lib/bb/dsl.ex`), so a DSL-declared controller does
   *not* start under simulation unless set to `:mock`/`:start`.
 - **`BB.Command`** — short-lived GenServer; `handle_command/3` + `result/1`;
   returns a result and exits. Composable as a `bb_reactor` `command` step
   (`apply(robot, command_name, [goal])`) and as a `bb_jido` action.
 
-There is **no framework-provided periodic-loop primitive** — each component
-schedules its own tick. `robot_opts/0` is an app-bootstrap helper that
+Periodic components use **`BB.Loop`** (`bb/lib/bb/loop.ex`) — a struct you embed
+in your own state rather than a behaviour or a process, giving a non-drifting
+tick, a measured `dt`, and health accounting when the loop falls behind. Clock it
+`{:rate, hertz}` to schedule its own ticks, or `:external` to step on message
+arrival, which is usually the better choice for a loop fed by a sensor. Every
+periodic satellite now uses it; the handful of remaining hand-rolled
+`Process.send_after(self(), :tick, ms)` loops predate it and should move across
+as they're touched. `robot_opts/0` is an app-bootstrap helper that
 `mix bb.add_robot` writes into the host `Application` (carrying `:simulation`),
 *not* a component attach point. Core ships actuator command message types
 (`BB.Message.Actuator.Command.{Position,Velocity,Effort,Hold,Stop,Trajectory}`).
@@ -162,12 +173,12 @@ schedules its own tick. `robot_opts/0` is an app-bootstrap helper that
 
 Satellites are near-clones of a shared skeleton. A new one should match:
 
-- **`mix.exs`**: module `BB.<Name>.MixProject`; `{:bb, bb_dep("~> 0.20")}` with
+- **`mix.exs`**: module `BB.<Name>.MixProject`; `{:bb, bb_dep("~> 0.31")}` with
   the standard `bb_dep/1` `BB_VERSION` switch; `elixir: "~> 1.19"`;
   `consolidate_protocols: Mix.env() == :prod`; `elixirc_paths` incl.
-  `test/support`; `dialyzer: [plt_add_apps: [:mix]]`. Pin `bb` to current
-  (`~> 0.20`) — most satellites are stale on `~> 0.16`/`~> 0.18` and should be
-  bumped as they're touched.
+  `test/support`; `dialyzer: [plt_add_apps: [:mix]]`. Pin `bb` to whatever
+  `bb/mix.exs` currently says rather than to the number written here — a few
+  satellites lag a minor version or two and should be bumped as they're touched.
 - **Dev/test deps** (`runtime: false`): `credo`, `dialyxir`, `ex_check`,
   `ex_doc`, `git_ops`, `igniter`, `mix_audit`; `mimic` (`only: :test`) where
   mocking is needed. No `stream_data` — there is no property testing in the
