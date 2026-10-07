@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "allow": ["Bash(gh pr review:*)"]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Approving and then merging a bot-authored dependency PR in the beam-bots organisation (author dependabot[bot] or renovate[bot]) once its required checks are green. This is the scheduled dependency sweep described in prompts/dependency-sweep.md. The approval is the repository owner's own, on a PR they did not author, so the merge satisfies the branch ruleset rather than bypassing it. Merging a human-authored PR, and any merge that bypasses the rules (gh pr merge --admin, editing a ruleset), are not covered by this rule."
+    ]
+  }
+}

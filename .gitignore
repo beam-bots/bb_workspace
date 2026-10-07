@@ -6,7 +6,11 @@
 
 # asdf / local tool installs
 .asdf-data/
-.claude/
+
+# Claude Code session state, except the settings the scheduled sweep needs —
+# it runs in a worktree, which only gets what git tracks.
+.claude/*
+!.claude/settings.json
 
 # Held while a bb-* script is running
 .bb-lock/
