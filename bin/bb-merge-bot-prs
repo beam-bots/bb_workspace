@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+#
+# bb-merge-bot-prs — merge bot-authored dependency PRs that are genuinely
+# green, one at a time, revalidating each immediately before it is merged.
+#
+# Usage:
+#   bb-merge-bot-prs bb#275 bb_kino#149 ...   # merge the named PRs
+#   bb-merge-bot-prs --stdin                  # read <repo>#<number> per line
+#   bb-merge-bot-prs --dry-run bb#275         # report eligibility, merge nothing
+#
+# A PR is merged only when all of these hold at the moment it is reached:
+#   - the author is dependabot or renovate
+#   - the PR is open, not a draft, and mergeable
+#   - every check the repo's ruleset requires is SUCCESS; for a repo that
+#     requires none, every check present must be SUCCESS, SKIPPED or NEUTRAL
+# It is approved first if it is not already, then squash-merged over the REST
+# API with "<title> (#N)" as the commit title so git_ops still reads the
+# history.
+#
+# Anything that fails a condition is reported and skipped, never forced. The
+# exit status is non-zero only if a merge was attempted and errored.
+
+set -uo pipefail
+
+ORG="beam-bots"
+DRY_RUN=0
+SPECS=()
+
+# The asdf `gh` shim doesn't resolve inside a Paseo worktree, so fall back to
+# the real binary. Resolving it here means callers never need to compose a
+# PATH export, which would stop this script matching its permission rule.
+if ! command -v gh >/dev/null 2>&1; then
+  for candidate in "$HOME"/.asdf/installs/github-cli/*/bin; do
+    if [[ -x "$candidate/gh" ]]; then
+      PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
+command -v gh >/dev/null 2>&1 || { echo "gh is not on PATH" >&2; exit 2; }
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --stdin) while IFS= read -r line; do [[ -n "$line" ]] && SPECS+=("$line"); done; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) echo "unknown argument: $1" >&2; exit 2 ;;
+    *) SPECS+=("$1"); shift ;;
+  esac
+done
+
+[[ ${#SPECS[@]} -eq 0 ]] && { echo "nothing to merge" >&2; exit 2; }
+
+bold()   { printf '\033[1m%s\033[0m' "$*"; }
+dim()    { printf '\033[2m%s\033[0m' "$*"; }
+green()  { printf '\033[32m%s\033[0m' "$*"; }
+yellow() { printf '\033[33m%s\033[0m' "$*"; }
+red()    { printf '\033[31m%s\033[0m' "$*"; }
+
+merged=0
+skipped=0
+failed=0
+
+merge_one() {
+  local repo="$1" num="$2" label="$3"
+
+  local pr
+  pr=$(gh pr view "$num" -R "$ORG/$repo" \
+    --json author,isDraft,state,mergeable,reviewDecision,title 2>/dev/null) || {
+    printf '%s %s\n' "$(bold "$label")" "$(red "could not be read")"
+    skipped=$((skipped + 1))
+    return
+  }
+
+  local author is_bot draft state mergeable review title
+  author=$(jq -r '.author.login' <<< "$pr")
+  is_bot=$(jq -r '.author.is_bot' <<< "$pr")
+  draft=$(jq -r '.isDraft' <<< "$pr")
+  state=$(jq -r '.state' <<< "$pr")
+  mergeable=$(jq -r '.mergeable' <<< "$pr")
+  review=$(jq -r '.reviewDecision' <<< "$pr")
+  title=$(jq -r '.title' <<< "$pr")
+
+  if [[ "$is_bot" != "true" ]] || ! [[ "$author" =~ (dependabot|renovate) ]]; then
+    printf '%s %s\n' "$(bold "$label")" "$(red "not bot-authored (${author})")"
+    skipped=$((skipped + 1))
+    return
+  fi
+
+  if [[ "$state" != "OPEN" || "$draft" == "true" ]]; then
+    printf '%s %s\n' "$(bold "$label")" \
+      "$(dim "$(tr '[:upper:]' '[:lower:]' <<< "$state")$([[ "$draft" == "true" ]] && echo " draft")")"
+    skipped=$((skipped + 1))
+    return
+  fi
+
+  local reason
+  reason=$(checks_failing "$repo" "$num")
+  if [[ -n "$reason" ]]; then
+    printf '%s %s\n' "$(bold "$label")" "$(yellow "$reason")"
+    skipped=$((skipped + 1))
+    return
+  fi
+
+  if [[ "$mergeable" != "MERGEABLE" ]]; then
+    printf '%s %s\n' "$(bold "$label")" "$(yellow "not mergeable (${mergeable})")"
+    skipped=$((skipped + 1))
+    return
+  fi
+
+  if [[ $DRY_RUN -eq 1 ]]; then
+    printf '%s %s\n' "$(bold "$label")" "$(green "eligible")"
+    return
+  fi
+
+  if [[ "$review" != "APPROVED" ]]; then
+    gh pr review "$num" -R "$ORG/$repo" --approve >/dev/null 2>&1 || {
+      printf '%s %s\n' "$(bold "$label")" "$(red "could not be approved")"
+      failed=$((failed + 1))
+      return
+    }
+  fi
+
+  local out
+  if out=$(gh api --method PUT "repos/$ORG/$repo/pulls/$num/merge" \
+    -f merge_method=squash \
+    -f commit_title="$title (#$num)" \
+    -f commit_message="" 2>&1); then
+    printf '%s %s\n' "$(bold "$label")" "$(green "merged")"
+    merged=$((merged + 1))
+  elif grep -qi 'conflict' <<< "$out"; then
+    printf '%s %s\n' "$(bold "$label")" "$(yellow "merge conflicts — leave for the bot to rebase")"
+    skipped=$((skipped + 1))
+  else
+    printf '%s %s\n' "$(bold "$label")" "$(red "$(head -1 <<< "$out")")"
+    failed=$((failed + 1))
+  fi
+}
+
+# Empty output means the checks are satisfied; anything else is the reason.
+checks_failing() {
+  local repo="$1" num="$2"
+
+  local branch
+  branch=$(gh api "repos/$ORG/$repo" --jq '.default_branch' 2>/dev/null) || branch="main"
+
+  local required
+  required=$(gh api "repos/$ORG/$repo/rules/branches/$branch" \
+    --jq '.[] | select(.type=="required_status_checks")
+          | .parameters.required_status_checks[].context' 2>/dev/null)
+
+  local rollup
+  rollup=$(gh pr view "$num" -R "$ORG/$repo" --json statusCheckRollup \
+    --jq '.statusCheckRollup[]? | "\(.name // .context)\t\(.conclusion // .state // "PENDING")"' 2>/dev/null)
+
+  if [[ -n "$required" ]]; then
+    local context conclusion
+    while IFS= read -r context; do
+      [[ -z "$context" ]] && continue
+      conclusion=$(awk -F'\t' -v c="$context" '$1 == c {print $2; exit}' <<< "$rollup")
+      [[ -z "$conclusion" ]] && { echo "required check '$context' has not run"; return; }
+      [[ "$conclusion" != "SUCCESS" ]] && { echo "required check '$context' is $conclusion"; return; }
+    done <<< "$required"
+    return
+  fi
+
+  [[ -z "$rollup" ]] && { echo "no checks have run"; return; }
+  awk -F'\t' '$2 != "SUCCESS" && $2 != "SKIPPED" && $2 != "NEUTRAL" {
+    print "check \047" $1 "\047 is " $2; exit
+  }' <<< "$rollup"
+}
+
+for spec in "${SPECS[@]}"; do
+  if ! [[ "$spec" =~ ^[A-Za-z0-9._-]+#[0-9]+$ ]]; then
+    printf '%s %s\n' "$(bold "$spec")" "$(red "not <repo>#<number>")"
+    skipped=$((skipped + 1))
+    continue
+  fi
+  merge_one "${spec%%#*}" "${spec##*#}" "$spec"
+done
+
+printf '\n%s merged, %s skipped, %s failed\n' \
+  "$(green "$merged")" "$(yellow "$skipped")" "$(red "$failed")"
+
+[[ $failed -gt 0 ]] && exit 1
+exit 0

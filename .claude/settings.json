@@ -1,7 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "permissions": {
-    "allow": ["Bash(gh pr review:*)"]
+    "allow": [
+      "Bash(gh pr review:*)",
+      "Bash(./bin/bb-merge-bot-prs:*)"
+    ]
   },
   "autoMode": {
     "allow": [

@@ -30,6 +30,7 @@ anywhere — they resolve their own paths).
 | `bb-each` | Run an arbitrary command in every repo. `--mix` limits to Elixir repos; `--filter 'bb_*'` for globs; `--parallel` to fan out. |
 | `bb-check` | Shorthand for `bb-each --mix -- mix check --no-retry`. Pass any mix task as an alternative. Under `BB_VERSION=local` it also drops each repo's cached PLT hash, since dialyxir can't tell a path dep's source has moved. |
 | `bb-deps-local` | `mix deps.get` everywhere with `BB_VERSION=local` so packages resolve `bb` from the sibling checkout. |
+| `bb-merge-bot-prs` | Merge bot-authored dependency PRs given as `<repo>#<number>`, revalidating each one immediately before it merges and skipping anything not bot-authored, open, mergeable and passing the checks its repo's ruleset requires. `--dry-run` reports eligibility only. Used by the scheduled sweep in `prompts/dependency-sweep.md`. |
 
 `bb-sync` rewrites a managed block in `.gitignore` between `# >>> bb-sync managed`
 markers — anything you put outside those markers is preserved.

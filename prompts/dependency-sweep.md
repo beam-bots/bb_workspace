@@ -29,22 +29,32 @@ Your job is to sweep those PRs: refresh the workspace, merge everything that is 
 
    A check with an empty `conclusion` is still running, not failing. `mergeStateStatus` is almost always `BLOCKED` and `reviewDecision` almost always `REVIEW_REQUIRED` before you approve — neither is a reason to skip a PR.
 
-5. **Merge the green ones.** Approve first:
+5. **Merge the green ones** with `bb-merge-bot-prs`, passing every PR you've
+   decided on:
 
    ```sh
-   gh pr review "$num" -R "beam-bots/$repo" --approve
+   ./bin/bb-merge-bot-prs bb#275 bb_kino#149 feetech#93
    ```
 
-   Then merge over the REST API, as a *separate* command — don't chain the two
-   together. Approving and merging in one invocation reads as clearing the
-   review requirement rather than satisfying it, and gets refused:
+   Invoke it exactly like that, from the workspace root, with nothing before it
+   on the line — the permission rule that lets it run unattended matches on
+   that prefix, so an absolute path, a bare name, or a leading `export PATH=…`
+   will all miss it. The script finds `gh` by itself, so it needs no such
+   prefix.
 
-   ```sh
-   gh api --method PUT "repos/beam-bots/$repo/pulls/$num/merge" \
-     -f merge_method=squash -f commit_title="$title (#$num)" -f commit_message=""
-   ```
+   It re-reads each PR immediately before merging it and refuses anything that
+   isn't bot-authored, open, mergeable and passing every check its repo's
+   ruleset requires — so a list assembled a few minutes ago can't act on a
+   stale assessment. It approves before merging where needed, squashes, and
+   sets `commit_title` to `<PR title> (#N)` so `git_ops` can still read the
+   history. `--dry-run` reports eligibility without merging anything.
 
-   Always squash, and always set `commit_title` to `<PR title> (#N)` so the default branch keeps its conventional-commit history — `git_ops` reads those commits to work out release versions.
+   Don't hand-roll `gh pr merge` or `gh api ... /merge` instead. The script is
+   the sanctioned path and runs without a permission prompt; an ad-hoc merge
+   command does not, and an unattended run has no one to answer it.
+
+   Skips are normal and are not failures — read the per-PR reasons and carry
+   them into the report.
 
 6. **Wait for anything still building.** Poll until the checks settle rather than declaring a PR unmergeable, then merge whatever went green. CI across this org runs for tens of minutes, and `bb`'s subproject matrix is slower still.
 
@@ -54,7 +64,7 @@ Your job is to sweep those PRs: refresh the workspace, merge everything that is 
 
 ## Things that will trip you up
 
-- **`gh pr merge` will refuse to merge PRs that are perfectly mergeable.** It reads GitHub's cached `mergeStateStatus`, which stays at `BLOCKED` for several minutes after you approve, and fails with "the base branch policy prohibits the merge". The REST call in step 5 succeeds immediately. Don't go digging through the rulesets when this happens.
+- **`gh pr merge` will refuse to merge PRs that are perfectly mergeable.** It reads GitHub's cached `mergeStateStatus`, which stays at `BLOCKED` for several minutes after you approve, and fails with "the base branch policy prohibits the merge". This is why `bb-merge-bot-prs` goes over the REST API, which succeeds immediately. Don't go digging through the rulesets when you see that message.
 
 - **The repos use rulesets, not classic branch protection**, so `repos/<repo>/branches/main/protection` returns 404. Read `gh api repos/beam-bots/<repo>/rules/branches/main` instead. The usual shape is one required approval plus one required check (`CI / canary`). Both are satisfiable without bypassing anything: the bots author the PRs, so James's approval counts, and it lands after the bot's last push, which is what `require_last_push_approval` wants. Approving and then merging over REST works because the rules are *met*, not because anything was overridden.
 
@@ -78,6 +88,7 @@ Your job is to sweep those PRs: refresh the workspace, merge everything that is 
 - **Never bypass the branch rules.** No `gh pr merge --admin`, no editing a ruleset, no merging as anything other than James's own token. Every PR in scope can be merged within the rules by approving it first; if a merge is still refused after that, it is telling you something — wait and retry, and if it still won't go, leave it and put it in the report.
 - **Never close, reopen, or reconfigure a PR**, and never edit a bot's branch. If a PR looks wrong, say so in the report.
 - **Don't touch local working state** — no committing, no pushing, no switching branches, no discarding changes in the clones.
+- **Keep scratch files in the workspace root**, not `/tmp`. Reading anything outside the working directory needs a permission that nobody is there to grant.
 - Green means green regardless of semver: a major bump with passing CI gets merged like anything else. That's the current practice, so flag majors prominently in the report rather than holding them back.
 
 ## Report
