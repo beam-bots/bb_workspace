@@ -209,6 +209,36 @@ Satellites are near-clones of a shared skeleton. A new one should match:
 Per-package detail lives in each repo's `AGENTS.md`; the framework's own
 conventions (message naming, error classes, DSL) are in `bb/AGENTS.md`.
 
+### Tests are event-driven, never timed
+
+**Never write a test that relies on sleeps or timing.** That means:
+
+- no `Process.sleep/1`;
+- no test double that "takes 300 ms";
+- no short timeout raced against slower work;
+- no `refute_receive msg, 100` standing in for "it didn't happen".
+
+These pass on a quiet laptop and fail under CI load, and a red job nobody
+trusts is worse than no test.
+
+Wait for the event that proves the thing happened instead:
+
+- **PubSub**: subscribe with `BB.subscribe/2` and `assert_receive` the message.
+- **Telemetry**: attach a handler that sends to the test process.
+- **Monitors**: `Process.monitor/1`, then `assert_receive {:DOWN, ...}`.
+- **Mocks and stubs**: a `mimic` stub, or a test double that reports to the
+  test process, can send an event the code under test doesn't.
+- **Gates**: to test a timeout, make the other side block until the test
+  releases it (`{BB.Test.RecordingActuator, gated: true}` in `bb`). The timeout
+  then fires because the answer *cannot* come, not because it is late.
+- **Synchronous calls**: to show something *didn't* happen, push a call
+  through the process first (`:sys.get_state/1` or any `GenServer.call/3`),
+  then use `refute_received`, which checks the mailbox without waiting.
+
+`assert_receive`'s timeout is fine. It is an upper bound on an event that must
+arrive, not a guess at how long something takes. Drive periodic code
+(`BB.Loop`) with `clock: :external` in tests rather than a real rate.
+
 ## Prompts
 
 `prompts/` holds reusable prompts that operate across the ecosystem — e.g.
