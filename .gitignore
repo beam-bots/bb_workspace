@@ -21,6 +21,8 @@
 # >>> bb-sync managed (do not edit between markers) >>>
 /_github/
 /bb/
+/bb_camera/
+/bb_camera_v4l/
 /bb_estimator_ahrs/
 /bb_example_so101/
 /bb_example_wx200/

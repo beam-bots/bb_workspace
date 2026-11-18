@@ -100,6 +100,7 @@ satellites. Knowing how they fit together saves re-deriving it from source.
 | Estimators | `bb_estimator_ahrs` | `BB.Estimator` implementations (Madgwick/Mahony/Complementary). |
 | Controllers | `bb_pid_controller` | `BB.Controller` implementations. |
 | Sensors | `bb_sensor_ina219`, `bb_sensor_bmi323` | `BB.Sensor` drivers (I²C/SPI via `wafer`). |
+| Cameras | `bb_camera`, `bb_camera_v4l` | `bb_camera` owns the `BB.Camera` behaviour and `BB.Camera.Hub`, a bounded shared capture that keeps frames off PubSub; `bb_camera_v4l` drives Linux V4L2 through ffmpeg. A camera is declared as an ordinary `sensor`. |
 | Servos | `bb_servo_feetech`, `bb_servo_pca9685`, `bb_servo_pigpio`, `bb_servo_robotis` | A `BB.Controller` bus manager + `BB.Actuator`s (+ optional `BB.Bridge`). |
 | Orchestration | `bb_reactor`, `bb_jido` | Reactor (saga) commands and Jido agents over BB commands. |
 | Policies | `bb_policy` | Learned (neural-network) behaviours mapping observations to actions, via ONNX. |
@@ -208,6 +209,11 @@ Satellites are near-clones of a shared skeleton. A new one should match:
 
 Per-package detail lives in each repo's `AGENTS.md`; the framework's own
 conventions (message naming, error classes, DSL) are in `bb/AGENTS.md`.
+
+Starting a new package is the long version of the above:
+[`documentation/new-package.md`](documentation/new-package.md) has the full
+file-by-file checklist, the `bb_dep` mechanism for sibling dependencies, the
+README header block, and the release flow.
 
 ### Look for the precedent before inventing one
 

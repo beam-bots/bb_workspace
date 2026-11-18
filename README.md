@@ -34,7 +34,9 @@ Everything that writes to the checkouts (`bb-sync`, `bb-each`, `bb-check`,
 first — telling you what it is queued behind — instead of racing it. ^C during
 the wait gives up without disturbing the holder.
 
-See [`AGENTS.md`](./AGENTS.md) for the full layout and conventions.
+See [`AGENTS.md`](./AGENTS.md) for the full layout and conventions, and
+[`documentation/new-package.md`](./documentation/new-package.md) for what a
+new package in the ecosystem needs before it can be released.
 
 ## Prompts
 
