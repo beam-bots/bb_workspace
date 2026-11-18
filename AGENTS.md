@@ -209,6 +209,41 @@ Satellites are near-clones of a shared skeleton. A new one should match:
 Per-package detail lives in each repo's `AGENTS.md`; the framework's own
 conventions (message naming, error classes, DSL) are in `bb/AGENTS.md`.
 
+### Look for the precedent before inventing one
+
+Before naming a new option, message or callback — or building a mechanism at
+all — go and find out what the ecosystem already calls that thing. It is
+nearly always already solved, two packages away, and the version you invent
+will be subtly different in a way that costs a reader every time they move
+between packages.
+
+Grep the satellites for the concept, not for the name you were about to use:
+
+```sh
+rg 'publish_rate|handle_options' bb*/lib --no-heading
+bb-each --mix -- rg -n 'the concept' lib
+```
+
+Two mistakes this ecosystem has already made and paid for, both of which a
+five-minute grep would have caught:
+
+- **`bb_camera` grew its own runtime configuration system** — a
+  `settings_schema/0` callback, a `put_settings` round trip, `ApplySettings`
+  and `RejectSettings` messages — duplicating the parameter system every
+  other satellite reaches through `options_schema/0` + `param/1` +
+  `handle_options/2`. In the one driver that talked to real hardware, its
+  settings schema held the same three keys as its own options schema.
+- **The hub's periodic publish was called a `telemetry_clock`**, when
+  "telemetry" already means `:telemetry` here — there is a `BB.Telemetry`,
+  and `BB.Loop` emits `[:bb, :loop, :tick]` — and when `bb_sensor_ina219` and
+  `bb_sensor_bmi323` had both already named that exact knob `publish_rate`
+  and typed it `unit_type(compatible: :hertz)`.
+
+The tell in both cases is a new concept that sounds general. If what you are
+adding would make sense in three other packages, one of them has probably
+done it — and if none has, that is a reason to ask whether it belongs in `bb`
+rather than in the package in front of you.
+
 ### Tests are event-driven, never timed
 
 **Never write a test that relies on sleeps or timing.** That means:
