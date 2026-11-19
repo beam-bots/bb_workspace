@@ -15,6 +15,9 @@
 # Held while a bb-* script is running
 .bb-lock/
 
+# A BEAM that died here rather than inside a checkout
+erl_crash.dump
+
 # Anything bb-sync writes between the markers below is managed automatically.
 # Run `bin/bb-sync` to refresh.
 
