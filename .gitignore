@@ -27,6 +27,7 @@ erl_crash.dump
 /bb_camera/
 /bb_camera_avf/
 /bb_camera_ffmpeg/
+/bb_camera_libcamera/
 /bb_camera_v4l/
 /bb_estimator_ahrs/
 /bb_example_so101/
