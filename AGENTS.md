@@ -100,7 +100,7 @@ satellites. Knowing how they fit together saves re-deriving it from source.
 | Estimators | `bb_estimator_ahrs` | `BB.Estimator` implementations (Madgwick/Mahony/Complementary). |
 | Controllers | `bb_pid_controller` | `BB.Controller` implementations. |
 | Sensors | `bb_sensor_ina219`, `bb_sensor_bmi323` | `BB.Sensor` drivers (I²C/SPI via `wafer`). |
-| Cameras | `bb_camera`, `bb_camera_v4l` | `bb_camera` owns the `BB.Camera` behaviour and `BB.Camera.Hub`, a bounded shared capture that keeps frames off PubSub; `bb_camera_v4l` drives Linux V4L2 through ffmpeg. A camera is declared as an ordinary `sensor`. |
+| Cameras | `bb_camera`, `bb_camera_ffmpeg`, `bb_camera_v4l`, `bb_camera_avf` | `bb_camera` owns the `BB.Camera` behaviour and `BB.Camera.Hub`, a bounded shared capture that keeps frames off PubSub. `bb_camera_ffmpeg` is the ffmpeg capture (MuonTrap-supervised, flow-controlled, MJPEG framing) the drivers share; `bb_camera_v4l` drives Linux V4L2 and `bb_camera_avf` macOS AVFoundation on top of it. A camera is declared as an ordinary `sensor`. |
 | Servos | `bb_servo_feetech`, `bb_servo_pca9685`, `bb_servo_pigpio`, `bb_servo_robotis` | A `BB.Controller` bus manager + `BB.Actuator`s (+ optional `BB.Bridge`). |
 | Orchestration | `bb_reactor`, `bb_jido` | Reactor (saga) commands and Jido agents over BB commands. |
 | Policies | `bb_policy` | Learned (neural-network) behaviours mapping observations to actions, via ONNX. |
